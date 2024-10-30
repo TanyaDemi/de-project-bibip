@@ -1,8 +1,9 @@
+import os
 from datetime import datetime
 from decimal import Decimal
 
 import pytest
-
+from pydantic import BaseModel, ValidationError
 from bibip_car_service import CarService
 from models import Car, CarFullInfo, CarStatus, Model, ModelSaleStats, Sale
 
@@ -89,7 +90,6 @@ def car_data():
         ),
     ]
 
-
 @pytest.fixture
 def model_data():
     return [
@@ -100,7 +100,6 @@ def model_data():
         Model(id=5, name="Logan", brand="Renault"),
     ]
 
-
 class TestCarServiceScenarios:
     def _fill_initial_data(self, service: CarService, car_data: list[Car], model_data: list[Model]) -> None:
         for model in model_data:
@@ -109,6 +108,7 @@ class TestCarServiceScenarios:
         for car in car_data:
             service.add_car(car)
 
+#  Проверяет добавление новой машины.
     def test_add_new_car(self, tmpdir: str, car_data: list[Car], model_data: list[Model]) -> None:
         service = CarService(tmpdir)
 
@@ -116,6 +116,7 @@ class TestCarServiceScenarios:
 
         assert True
 
+#  Проверяет, что машина меняет статус на "sold" после продажи.
     def test_sell_car(self, tmpdir: str, car_data: list[Car], model_data: list[Model]) -> None:
         service = CarService(tmpdir)
 
@@ -133,6 +134,8 @@ class TestCarServiceScenarios:
         assert res is not None
         assert res.status == CarStatus.sold
 
+
+#  Проверяет получение списка машин со статусом "available".
     def test_list_cars_by_available_status(self, tmpdir: str, car_data: list[Car], model_data: list[Model]):
         service = CarService(tmpdir)
 
@@ -142,8 +145,14 @@ class TestCarServiceScenarios:
 
         assert service.get_cars(CarStatus.available) == available_cars
 
+#  Проверяет полную информацию о машине до и после продажи.     
     def test_list_full_info_by_vin(self, tmpdir: str, car_data: list[Car], model_data: list[Model]):
         service = CarService(tmpdir)
+
+        # Создаем файл sales.txt, если он не существует
+        sales_file_path = os.path.join(tmpdir, "sales.txt")
+        if not os.path.exists(sales_file_path):
+            open(sales_file_path, "w").close()
 
         self._fill_initial_data(service, car_data, model_data)
 
@@ -182,8 +191,12 @@ class TestCarServiceScenarios:
 
         assert service.get_car_info("KNAGM4A77D5316538") == full_info_with_sale
 
+#  Проверяет обновление VIN для машины.
     def test_update_vin(self, tmpdir: str, car_data: list[Car], model_data: list[Model]):
         service = CarService(tmpdir)
+        sales_file_path = os.path.join(tmpdir, "sales.txt")
+        if not os.path.exists(sales_file_path):
+            open(sales_file_path, "w").close()
 
         full_info_no_sale = CarFullInfo(
             vin="KNAGM4A77D5316538",
@@ -207,6 +220,7 @@ class TestCarServiceScenarios:
         assert service.get_car_info("UPDGM4A77D5316538") == full_info_no_sale
         assert service.get_car_info("KNAGM4A77D5316538") is None
 
+#  Проверяет отмену продажи и возврат статуса машины на "available".
     def test_delete_sale(self, tmpdir: str, car_data: list[Car], model_data: list[Model]):
         service = CarService(tmpdir)
 
@@ -231,6 +245,7 @@ class TestCarServiceScenarios:
         assert car is not None
         assert car.status == CarStatus.available
 
+#  Проверяет список топ-3 моделей по продажам.
     def test_top_3_models_by_sales(self, tmpdir: str, car_data: list[Car], model_data: list[Model]):
         service = CarService(tmpdir)
 
